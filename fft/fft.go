@@ -8,15 +8,91 @@ import (
 var wRev, wForw [][]complex128
 
 // FFT performs fast fourier transformation
-func FFT(f []float64) (F []float64) {
+func FFT(f []float64) (F []complex128) {
 
 	zeroFill(&f)
-	bitWidth := uint(bitWidth(len(f)))
-	prepOmega(1 << (bitWidth - 1))
+	bitWidth := uint(bitWidth(len(f) - 1))
+	prepOmega(1 << (bitWidth))
 
 	shuffle := make([]int, len(f))
 	for i := range shuffle {
 		shuffle[i] = bitreverse(i, int(bitWidth))
+	}
+
+	buf := make([][]complex128, bitWidth+1)
+	for i := range buf {
+		buf[i] = make([]complex128, len(f))
+	}
+
+	var stage uint
+	stage = 0
+	for i := 0; i <= len(f)-1; i++ {
+		convIdx := shuffle[i]
+		buf[0][i] = complex(f[convIdx], 0.0)
+	}
+
+	stage = 1
+	cellSize := (1 << stage)
+	for stage <= bitWidth {
+		halfCellSize := cellSize >> 1
+		for col := 0; col+cellSize-1 <= len(f)-1; col += cellSize {
+			for k := 0; k <= halfCellSize-1; k++ {
+				buf[stage][col+k] = wRev[stage][k] * buf[stage-1][col+k+halfCellSize]
+				buf[stage][col+k+halfCellSize] = -wRev[stage][k] * buf[stage-1][col+k+halfCellSize]
+
+				buf[stage][col+k] += buf[stage-1][col+k]
+				buf[stage][col+k+halfCellSize] += buf[stage-1][col+k]
+			}
+		}
+		stage++
+		cellSize = (1 << stage)
+	}
+	stage--
+
+	F = buf[stage]
+
+	for i := range F {
+		F[i] /= complex(float64(len(F)), 0.0)
+	}
+
+	return
+}
+
+func rft(F []complex128) (f []complex128) {
+
+	size := len(F)
+	f = make([]complex128, size)
+
+	rot := 2.0 * math.Pi / float64(size)
+
+	var temp complex128
+	for l := 0; l <= size-1; l++ {
+		temp = 0 + 0i
+		for k := 0; k <= size-1; k++ {
+			omega := complex(math.Cos(rot*float64(k*l)), math.Sin(rot*float64(k*l)))
+			temp += omega * F[k]
+		}
+		f[l] = temp
+	}
+
+	return
+}
+
+func ft(f []float64) (F []complex128) {
+
+	size := len(f)
+	F = make([]complex128, size)
+
+	rot := 2.0 * math.Pi / float64(size)
+
+	var temp complex128
+	for l := 0; l <= size-1; l++ {
+		temp = 0 + 0i
+		for k := 0; k <= size-1; k++ {
+			omega := complex(math.Cos(rot*float64(k*l)), -math.Sin(rot*float64(k*l)))
+			temp += omega * complex(f[k], 0.0)
+		}
+		F[l] = temp / complex(float64(size), 0.0)
 	}
 
 	return
@@ -39,7 +115,6 @@ func zeroFill(f *[]float64) {
 		temp = make([]float64, newLength-len(*f))
 		*f = append(*f, temp...)
 	}
-
 }
 
 //Bitreverse is a function that rearranges the index for FFT
@@ -97,7 +172,34 @@ func bitWidth(x int) int {
 
 //Test is an exported test field
 func Test() {
-	fmt.Println("bitreverse(3,4):", bitreverse(3, 4))
+	div := 64
+	f := make([]float64, div)
+	for i := 0; i <= div-1; i++ {
+		f[i] = math.Sin(2.0 * math.Pi / float64(div) * float64(i))
+	}
+
+	F := FFT(f)
+	//	sF := ft(f)
+
+	for i := range F {
+		fmt.Printf("%d,%f\n", i, F[i])
+	}
+	fmt.Println()
+
+	for i := range F {
+		fmt.Printf("%d,%f\n", i, cabs(F[i]))
+	}
+	fmt.Println()
+
+	regen := rft(F)
+	for i := range regen {
+		fmt.Printf("%d,%f\n", i, real(regen[i]))
+	}
+}
+
+func cabs(z complex128) float64 {
+	temp := math.Pow(real(z), 2.0) + math.Pow(imag(z), 2.0)
+	return math.Sqrt(temp)
 }
 
 /*func Test() {
