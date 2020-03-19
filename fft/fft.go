@@ -133,7 +133,7 @@ func bitreverse(x int, bitWidth int) int {
 }
 
 //prepOmega prepares table for wRev and wForw
-//argument "size" is literalli a "size", normally 1, 2, 4, 8..., and NOT a logarithm of them
+//argument "size" is literally the "size", normally 1, 2, 4, 8..., and NOT a logarithm of them
 //wForw[i] corresponds to a series of 2^i th root of unity, and contains 2^i datum (w^0 to w^(i-1))
 func prepOmega(size int) {
 
